@@ -1,0 +1,10 @@
+#!/bin/sh
+
+make
+./reopening optimal-alphabeta
+python3 optimal_ab_compute_all_18_end.py
+python3 compute_all_19_end.py
+python3 optimal_ab_postprocessing1_aggregate_by_disccount_and_dedup.py
+python3 optimal_ab_postprocessing2_concat_and_sort.py
+python3 optimal_ab_postprocessing3.py
+python3 optimal_ab_postprocessing4.py
