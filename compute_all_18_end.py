@@ -115,7 +115,6 @@ def compute_all_18_end():
                     assert lowerbound <= upperbound
                     lines_dict[columns[0]] = (nodekindcode, lowerbound, upperbound)
 
-    # 難易度が最大のものでも実行時間はたかだか数分なので、シャッフルして実行する
     commands = []
     for k, v in lines_dict.items():
         commands.append(f"./reopening reopening-ab {v[0]} {v[1]} {v[2]} {k}")

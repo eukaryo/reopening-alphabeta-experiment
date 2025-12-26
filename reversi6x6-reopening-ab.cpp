@@ -125,7 +125,7 @@ void board_unique(const uint64_t P_src, const uint64_t O_src, uint64_t &P_dest, 
 
 	const __m256i tt3lo_ppoo = _mm256_and_si256(_mm256_srlv_epi64(tt2_ppoo, _mm256_set_epi64x(4, 32, 4, 32)), _mm256_set_epi64x(0x0F0F0F0F0F0F0F0FLL, 0x00000000FFFFFFFFLL, 0x0F0F0F0F0F0F0F0FLL, 0x00000000FFFFFFFFLL));
 	const __m256i tt3hi_ppoo = _mm256_and_si256(_mm256_sllv_epi64(tt2_ppoo, _mm256_set_epi64x(4, 32, 4, 32)), _mm256_set_epi64x(0xF0F0F0F0F0F0F0F0LL, 0xFFFFFFFF00000000LL, 0xF0F0F0F0F0F0F0F0LL, 0xFFFFFFFF00000000LL));
-	const __m256i tt3_ppoo = _mm256_or_si256(tt3lo_ppoo, tt3hi_ppoo);//この時点で、上位から順に(P横鏡映、P縦鏡映、O横鏡映、O縦鏡映)
+	const __m256i tt3_ppoo = _mm256_or_si256(tt3lo_ppoo, tt3hi_ppoo);
 
 	constexpr auto f = [](const uint8_t i) {
 		return uint8_t(((i & 1) << 3) + ((i & 2) << 1) + ((i & 4) >> 1) + ((i & 8) >> 3));
@@ -141,8 +141,8 @@ void board_unique(const uint64_t P_src, const uint64_t O_src, uint64_t &P_dest, 
 	const __m256i rva2 = _mm256_shuffle_epi8(rvr1, rva1);
 	const __m256i rva3 = _mm256_shuffle_epi8(rva2, _mm256_set_epi8(8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
 	const __m256i rva4 = _mm256_shuffle_epi32(rva3, 0b00001110);
-	const __m256i rva5 = _mm256_add_epi32(rva4, _mm256_slli_epi64(rva3, 4));//この時点で、上位から順に(any、P逆転、any、O逆転)
-	const __m256i rev_ppoo = _mm256_blend_epi32(rva5, bb0_ppoo, 0b11001100);//この時点で、上位から順に(Pそのまま、P逆転、Oそのまま、O逆転)
+	const __m256i rva5 = _mm256_add_epi32(rva4, _mm256_slli_epi64(rva3, 4));
+	const __m256i rev_ppoo = _mm256_blend_epi32(rva5, bb0_ppoo, 0b11001100);
 
 	const __m256i x1_t = _mm256_and_si256(_mm256_xor_si256(tt3_ppoo, _mm256_srli_epi64(tt3_ppoo, 7)), _mm256_set1_epi64x(0x00AA00AA00AA00AALL));
 	const __m256i x1_r = _mm256_and_si256(_mm256_xor_si256(rev_ppoo, _mm256_srli_epi64(rev_ppoo, 7)), _mm256_set1_epi64x(0x00AA00AA00AA00AALL));
@@ -154,8 +154,8 @@ void board_unique(const uint64_t P_src, const uint64_t O_src, uint64_t &P_dest, 
 	const __m256i y2_r = _mm256_xor_si256(y1_r, _mm256_xor_si256(x2_r, _mm256_slli_epi64(x2_r, 14)));
 	const __m256i x3_t = _mm256_and_si256(_mm256_xor_si256(y2_t, _mm256_srli_epi64(y2_t, 28)), _mm256_set1_epi64x(0x00000000F0F0F0F0LL));
 	const __m256i x3_r = _mm256_and_si256(_mm256_xor_si256(y2_r, _mm256_srli_epi64(y2_r, 28)), _mm256_set1_epi64x(0x00000000F0F0F0F0LL));
-	const __m256i zz_t = _mm256_xor_si256(y2_t, _mm256_xor_si256(x3_t, _mm256_slli_epi64(x3_t, 28)));//この時点で、tt3_ppooの各要素を行列転置したもの
-	const __m256i zz_r = _mm256_xor_si256(y2_r, _mm256_xor_si256(x3_r, _mm256_slli_epi64(x3_r, 28)));//この時点で、rev_ppooの各要素を行列転置したもの
+	const __m256i zz_t = _mm256_xor_si256(y2_t, _mm256_xor_si256(x3_t, _mm256_slli_epi64(x3_t, 28)));
+	const __m256i zz_r = _mm256_xor_si256(y2_r, _mm256_xor_si256(x3_r, _mm256_slli_epi64(x3_r, 28)));
 
 	alignas(32) uint64_t bb[16] = {};
 	_mm256_storeu_si256((__m256i*)(&(bb[0])), tt3_ppoo);
@@ -460,8 +460,6 @@ uint64_t flip(const uint64_t player, const uint64_t opponent, const int pos) {
 }
 inline uint32_t bitscan_forward64(const uint64_t x, uint32_t *dest) {
 
-	//xが非ゼロなら、立っているビットのうち最下位のものの位置をdestに代入して、非ゼロの値を返す。
-	//xがゼロなら、ゼロを返す。このときのdestの値は未定義である。
 
 #ifdef _MSC_VER
 	return _BitScanForward64(reinterpret_cast<unsigned long *>(dest), x);
@@ -472,15 +470,12 @@ inline uint32_t bitscan_forward64(const uint64_t x, uint32_t *dest) {
 }
 int32_t ComputeFinalScore(const uint64_t player, const uint64_t opponent) {
 
-	//引数の盤面が即詰みだと仮定し、最終スコアを返す。
 
 	const int32_t n_discs_p = _mm_popcnt_u64(player);
 	const int32_t n_discs_o = _mm_popcnt_u64(opponent);
 
 	int32_t score = n_discs_p - n_discs_o;
 
-	//空白マスが残っている状態で両者とも打つ場所が無い場合は試合終了だが、
-	//そのとき引き分けでないならば、空白マスは勝者のポイントに加算されるというルールがある。
 	if (score < 0) score -= 36 - n_discs_p - n_discs_o;
 	else if (score > 0) score += 36 - n_discs_p - n_discs_o;
 
@@ -492,7 +487,7 @@ int32_t ComputeFinalScore(const uint64_t player, const uint64_t opponent) {
 constexpr uint64_t MASK_EDGE8x8 = 0xFF81'8181'8181'81FFULL;
 constexpr uint64_t MASK_8x8to6x6 = ~MASK_EDGE8x8;
 
-const auto codebook = "56789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#_";//81文字
+const auto codebook = "56789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#_";
 uint8_t inverse_codebook[128];
 
 uint8_t ternary_encoding_table[32][32];
@@ -702,15 +697,12 @@ private:
 	}
 
 	static bool insert_(
-		HashEntry &hash_entry, // Robin Hood Hashingのため、参照渡しでconstつけない。
+		HashEntry &hash_entry,
 		const int64_t table_bitlen_,
 		std::vector<HashEntry>&hash_table_,
 		std::vector<uint8_t>&distance_table_,
 		std::vector<uint8_t>&signature_table_,
 		int64_t &population_) {
-		//hash_entryをテーブルに代入しようとする。代入できたらtrue, 失敗したらfalseを返す。
-		//Robin Hood Hashingを行う。失敗した場合、引数として受け取ったhash_entryはテーブルに代入されていて、別のhash_entryを代入失敗するケースがありうる。
-		//失敗した場合に代入できなかったentryがhash_entryに格納された状態でfalseを返す。
 
 		uint64_t index = hash_entry.hashed_code & ((1ULL << table_bitlen_) - 1);
 		uint8_t signature = uint8_t(hash_entry.hashed_code >> 57);
@@ -718,7 +710,6 @@ private:
 		for (uint64_t i = index; i < index + 32; ++i) {
 
 			if (signature_table_[i] == 0x80) {
-				//空の場所を見つけたら代入して終了
 
 				hash_table_[i] = hash_entry;
 				distance_table_[i] = i - index;
@@ -727,7 +718,6 @@ private:
 				return true;
 			}
 			else if (hash_table_[i].hashed_code == hash_entry.hashed_code) {
-				//同じ局面が入っている場所を見つけたらアップデートして終了
 
 				assert(signature_table_[i] == signature);
 
@@ -736,8 +726,6 @@ private:
 				return true;
 			}
 			else if (i - index > distance_table_[i]) {
-				//今入れようとしている局面をpとする。ハッシュテーブル[i]には別の局面qの値が入っている。
-				//pの距離がqの距離よりも遠いなら、qを取り出してから[i]にpを代入し、qを別の場所に入れる。(Robin Hood Hashing)
 
 				HashEntry new_entry = hash_table_[i];
 				uint64_t new_index = i - distance_table_[i];
@@ -755,7 +743,7 @@ private:
 	}
 
 	std::vector<uint8_t>distance_table;
-	int64_t table_bitlen; // hash_tableの現在の容量は2^(table_bitlen)
+	int64_t table_bitlen;
 	int64_t population;
 
 public:
@@ -842,10 +830,7 @@ public:
 
 	bool find(const uint64_t bb_code, Bound &bound) {
 
-		//ハッシュテーブルに引数局面の情報があるか調べて、あればその情報を格納してtrueを返し、なければfalseを返す。
 
-		//ナイーブな処理手順では、[index]から順番になめていって所望の局面かどうかを調べていき、所望の局面を得るか空白エントリに当たったら終了する。
-		//でも今回はシグネチャ配列があるので効率的に計算できる。空白エントリはシグネチャが0x80であることを考慮しつつ、以下のようなAVX2のコードが書ける。
 
 		const uint64_t hashcode = get_hash_code(bb_code);// wang_hash64(bb_code);
 		const uint64_t index = hashcode & ((1ULL << table_bitlen) - 1);
@@ -853,15 +838,12 @@ public:
 		__m256i query_signature = _mm256_set1_epi8(int8_t(hashcode >> 57));
 		__m256i table_signature = _mm256_loadu_si256((__m256i*)&signature_table.data()[index]);
 
-		//[index + i]の情報が ↑のsignature_table.i8[i]に格納されているとして、↓のi桁目のbitに移されるとする。
 
 		const uint64_t is_empty = uint32_t(_mm256_movemask_epi8(table_signature));
 		const uint64_t is_positive = uint32_t(_mm256_movemask_epi8(_mm256_cmpeq_epi8(query_signature, table_signature)));
 
 		uint64_t to_look = (is_empty ^ (is_empty - 1)) & is_positive;
 
-		//[index+i]がシグネチャ陽性かどうかがis_positiveの下からi番目のビットにあるとする。
-		//最初に当たる空白エントリより手前にあるシグネチャ陽性な局面の位置のビットボードが計算できる。to_lookがそれである。
 
 		for (uint32_t i = 0; bitscan_forward64(to_look, &i); to_look &= to_look - 1) {
 			const uint64_t pos = index + i;
@@ -899,7 +881,6 @@ public:
 
 	bool find(const uint64_t bb_code, Bound &bound) {
 
-		//ハッシュテーブルに引数局面の情報があるか調べて、あればその情報を格納してtrueを返し、なければfalseを返す。
 
 		if (table.find(bb_code) != table.end()) {
 			bound = table[bb_code];
@@ -1013,9 +994,7 @@ const uint8_t SQUARE_VALUE[] = {
 
 
 //https://www.maths.nottingham.ac.uk/plp/pmzjff/Othello/6x6sol.html
-//6x6オセロの最善進行が書かれている。d3始まりで書かれているので、f5始まりに変換する必要がある：
 //d3c5d6e3f5f4e2d2c2e6e7g5c4c3g4g3f3c7b5d7b7b3c6b6f7f6b4b2g6g7paf2g2
-//↓変換（＋pass除去）
 //f5d6c5f4d3e3g4g5g6c4b4d2e6f6e2f2f3b6d7b5b7f7c6c7b3c3e7g7c2b2g3g2
 //F5,D6,C5,F4,D3,E3,G4,G5,G6,C4,B4,D2,E6,F6,E2,F2,F3,B6,D7,B5,B7,F7,C6,C7,B3,C3,E7,G7,C2,B2,G3,G2
 //37, 43, 34, 29, 19, 20, 30, 38, 46, 26, 25, 11, 44, 45, 12, 13, 21, 41, 51, 33, 49, 53, 42, 50, 17, 18, 52, 54, 10, 9, 22, 14
@@ -1221,12 +1200,8 @@ int32_t entry_endgame_negascout(const uint64_t player, const uint64_t opponent, 
 enum {
 	NEGASCOUT_PV,
 	NEGASCOUT_CHOOSE_GOOD,
-	//非自明な局面かつendgame以前であれば、
-	//  引数chosen_moveにはbeta cutされうるならされる手を必ず格納するが、最善手であることは保証しない。
-	//  cutされないなら必ず最善手を格納する。
-	//    (alpha==-36 && beta==36 で呼べば必ず最善手が返されることに注意）
 
-	NEGASCOUT_MISC//chosen_moveになにを格納するか保証しない。
+	NEGASCOUT_MISC
 };
 int32_t negascout(const uint64_t _player, const uint64_t _opponent, const int32_t alpha, const int32_t beta, const int32_t node_kind, uint8_t &chosen_move) {
 	const std::array<uint64_t, 2> unique_board = board_unique(_player, _opponent);
@@ -1246,7 +1221,6 @@ int32_t negascout(const uint64_t _player, const uint64_t _opponent, const int32_
 	const uint64_t unique_code = encode_bb(unique_board);
 	if (node_kind == NEGASCOUT_MISC) {
 		if(n_disc < TT_THRESHOLD){
-			// transposition tableを確認して、答えがあればそれを返す
 			if (transposition_table.find(unique_code, b)) {
 				if (b.lowerbound == b.upperbound) return b.upperbound;
 				if (b.upperbound <= alpha)return b.upperbound;
@@ -1267,7 +1241,6 @@ int32_t negascout(const uint64_t _player, const uint64_t _opponent, const int32_
 		uint64_t bb_next = get_moves(opponent, player) & MASK_8x8to6x6;
 		if (bb_next != 0) { // pass
 
-			//passの直後にwipeoutされるかどうか調べる。
 			for (uint32_t index; bitscan_forward64(bb_next, &index); bb_next &= bb_next - 1) {
 				const uint64_t flipped = flip(opponent, player, index);
 				assert(flipped);
@@ -1296,7 +1269,7 @@ int32_t negascout(const uint64_t _player, const uint64_t _opponent, const int32_
 			}
 			return score;
 		}
-		else { // game over (自明な局面だった)
+		else {
 			const int score = ComputeFinalScore(player, opponent);
 			if (n_disc < TT_THRESHOLD) {
 				transposition_table.insert(unique_code, score, score);
@@ -1305,7 +1278,6 @@ int32_t negascout(const uint64_t _player, const uint64_t _opponent, const int32_
 		}
 	}
 	else{
-		//wipeoutする手が存在するか調べる。
 		uint64_t bb_ = bb_moves;
 		for (uint32_t index; bitscan_forward64(bb_, &index); bb_ &= bb_ - 1) {
 			const uint64_t flipped = flip(player, opponent, index);
@@ -1364,7 +1336,7 @@ int32_t negascout(const uint64_t _player, const uint64_t _opponent, const int32_
 
 		const uint64_t flipped = flip(player, opponent, pos);
 		assert(flipped);
-		assert(flipped != opponent); // wipeoutできないことが事前にチェック済みであることを仮定する。
+		assert(flipped != opponent);
 		const uint64_t next_player = opponent ^ flipped;
 		const uint64_t next_opponent = player ^ (flipped | (1ULL << pos));
 
@@ -1447,7 +1419,7 @@ int get_optimal_ab_child_node_kind(const int parent_kind, bool is_child_first) {
 	return 1;
 }
 
-std::unordered_map<uint64_t, std::pair<Bound, uint8_t>, my_hash_function::hash_uint64_t>optimal_ab_transposition_table;//second.secondはnode_kind
+std::unordered_map<uint64_t, std::pair<Bound, uint8_t>, my_hash_function::hash_uint64_t>optimal_ab_transposition_table;
 int32_t optimal_alphabeta(const uint64_t _player, const uint64_t _opponent, int32_t alpha, int32_t beta, const int node_kind) {
 	const std::array<uint64_t, 2> unique_board = board_unique(_player, _opponent);
 	const uint64_t player = unique_board[0];
@@ -1465,7 +1437,7 @@ int32_t optimal_alphabeta(const uint64_t _player, const uint64_t _opponent, int3
 	if (n_disc < OPTIMAL_TT_THRESHOLD) {
 		unique_code = encode_bb(unique_board);
 		if (optimal_ab_transposition_table.find(unique_code) != optimal_ab_transposition_table.end()) {
-			assert(node_kind != OPTIMAL_AB_PV_NODE); // PV nodeではないはず
+			assert(node_kind != OPTIMAL_AB_PV_NODE);
 			b = optimal_ab_transposition_table[unique_code].first;
 			tt_node_kind = optimal_ab_transposition_table[unique_code].second;
 
@@ -1488,7 +1460,7 @@ int32_t optimal_alphabeta(const uint64_t _player, const uint64_t _opponent, int3
 		if (bb_next != 0) { // pass
 			return -optimal_alphabeta(opponent, player, -beta, -alpha, get_optimal_ab_child_node_kind(node_kind, true));
 		}
-		else { // game over (自明な局面だった)
+		else {
 			return ComputeFinalScore(player, opponent);
 		}
 	}
@@ -1504,7 +1476,6 @@ int32_t optimal_alphabeta(const uint64_t _player, const uint64_t _opponent, int3
 
 	uint64_t pv_move_code = 0;
 	if (node_kind == OPTIMAL_AB_PV_NODE) {
-		//6x6オセロの"本筋"の中にいるなら、最初に探索する手は確定される。
 		assert(bb_moves & (1ULL << unique_pos_record[n_disc])); // optimality
 		const uint64_t flipped = flip(player, opponent, unique_pos_record[n_disc]);
 		assert(flipped);
@@ -1516,7 +1487,6 @@ int32_t optimal_alphabeta(const uint64_t _player, const uint64_t _opponent, int3
 		assert(TT_THRESHOLD > OPTIMAL_TT_THRESHOLD);
 		negascout(player, opponent, beta - 1, beta, NEGASCOUT_CHOOSE_GOOD, chosen_move);
 
-		//null-windowのnegascout探索をNEGASCOUT_CHOOSE_GOODでしているので、chosen_moveにはbeta_cutされる手が入っている。
 		assert(chosen_move < 64);
 		assert(bb_moves & (1ULL << chosen_move));
 	}
@@ -1524,7 +1494,6 @@ int32_t optimal_alphabeta(const uint64_t _player, const uint64_t _opponent, int3
 	bool pv_found = false;
 
 	for (uint32_t index; bitscan_forward64(bb_moves, &index); bb_moves &= bb_moves - 1) {
-		//合法手のorderingのためのscoringをする。
 
 		moves[movenum] = uint8_t(index);
 		const uint64_t flipped = flip(player, opponent, index);
@@ -1533,7 +1502,6 @@ int32_t optimal_alphabeta(const uint64_t _player, const uint64_t _opponent, int3
 		const uint64_t next_opponent = player ^ (flipped | (1ULL << index));
 
 		if (node_kind == OPTIMAL_AB_PV_NODE) {
-			//PVノードの場合、"本筋"を最初に探索する。それ以外の手の探索順序はどうであっても最適性は保たれる。
 			if (pv_move_code == encode_bb({ next_player, next_opponent })) {
 				assert(pv_found == false);
 				move_score[movenum] = 1LL << 50;
@@ -1542,14 +1510,10 @@ int32_t optimal_alphabeta(const uint64_t _player, const uint64_t _opponent, int3
 			else move_score[movenum] = move_scoring(player, opponent, index);
 		}
 		else if (node_kind == OPTIMAL_AB_ALL_NODE) {
-			//ALLノードの場合、どういう順に探索しようとも"最適性"が保たれる。
 			move_score[movenum] = move_scoring(player, opponent, index);
 		}
 		else if (node_kind == OPTIMAL_AB_CUT_NODE) {
-			//CUTノードの場合、fail-highする手を最初に探索すれば"最適性"が保たれる。
-			//2手目以降はどういう順に探索しようとも"最適性"が保たれる。
 
-			//上でnegascout探索をしているので、chosen_moveには"最適性"を保つための手が入っている。
 			if (chosen_move == moves[movenum]) {
 				move_score[movenum] = 1LL << 50;
 				pv_found = true;
@@ -1678,7 +1642,7 @@ int get_reopening_ab_child_node_kind(const int parent_kind, bool is_child_first)
 	assert(false);
 	return 1;
 }
-std::unordered_map<uint64_t, std::pair<Bound, uint8_t>, my_hash_function::hash_uint64_t>optimal_reopening_ab_transposition_table;//second.secondはnode_kind
+std::unordered_map<uint64_t, std::pair<Bound, uint8_t>, my_hash_function::hash_uint64_t>optimal_reopening_ab_transposition_table;
 int32_t optimal_reopening_alphabeta(const uint64_t _player, const uint64_t _opponent, int32_t alpha, int32_t beta, const int node_kind) {
 	const std::array<uint64_t, 2> unique_board = board_unique(_player, _opponent);
 	const uint64_t player = unique_board[0];
@@ -1696,7 +1660,7 @@ int32_t optimal_reopening_alphabeta(const uint64_t _player, const uint64_t _oppo
 	if (n_disc < OPTIMAL_TT_THRESHOLD) {
 		unique_code = encode_bb(unique_board);
 		if (optimal_reopening_ab_transposition_table.find(unique_code) != optimal_reopening_ab_transposition_table.end()) {
-			assert(node_kind != REOPENING_AB_PV_NODE); // PV nodeではないはず
+			assert(node_kind != REOPENING_AB_PV_NODE);
 			b = optimal_reopening_ab_transposition_table[unique_code].first;
 			tt_node_kind = optimal_reopening_ab_transposition_table[unique_code].second;
 
@@ -1731,7 +1695,7 @@ int32_t optimal_reopening_alphabeta(const uint64_t _player, const uint64_t _oppo
 		if (bb_next != 0) { // pass
 			return -optimal_reopening_alphabeta(opponent, player, -beta, -alpha, get_reopening_ab_child_node_kind(node_kind, true));
 		}
-		else { // game over (自明な局面だった)
+		else {
 			return ComputeFinalScore(player, opponent);
 		}
 	}
@@ -1747,7 +1711,6 @@ int32_t optimal_reopening_alphabeta(const uint64_t _player, const uint64_t _oppo
 
 	uint64_t pv_move_code = 0;
 	if (node_kind == REOPENING_AB_PV_NODE) {
-		//6x6オセロの"本筋"の中にいるなら、最初に探索する手は確定される。
 		assert(bb_moves & (1ULL << unique_pos_record[n_disc])); // optimality
 		const uint64_t flipped = flip(player, opponent, unique_pos_record[n_disc]);
 		assert(flipped);
@@ -1759,7 +1722,6 @@ int32_t optimal_reopening_alphabeta(const uint64_t _player, const uint64_t _oppo
 		assert(TT_THRESHOLD > OPTIMAL_TT_THRESHOLD);
 		negascout(player, opponent, -36, 36, NEGASCOUT_CHOOSE_GOOD, chosen_move);
 
-		//full-windowのnegascout探索をNEGASCOUT_CHOOSE_GOODでしているので、chosen_moveに最善手が入っている。
 		assert(chosen_move < 64);
 		assert(bb_moves & (1ULL << chosen_move));
 	}
@@ -1767,7 +1729,6 @@ int32_t optimal_reopening_alphabeta(const uint64_t _player, const uint64_t _oppo
 		assert(TT_THRESHOLD > OPTIMAL_TT_THRESHOLD);
 		negascout(player, opponent, beta - 1, beta, NEGASCOUT_CHOOSE_GOOD, chosen_move);
 
-		//null-windowのnegascout探索をNEGASCOUT_CHOOSE_GOODでしているので、chosen_moveにはbeta_cutされる手が入っている。
 		assert(chosen_move < 64);
 		assert(bb_moves & (1ULL << chosen_move));
 	}
@@ -1775,7 +1736,6 @@ int32_t optimal_reopening_alphabeta(const uint64_t _player, const uint64_t _oppo
 	bool pv_found = false;
 
 	for (uint32_t index; bitscan_forward64(bb_moves, &index); bb_moves &= bb_moves - 1) {
-		//合法手のorderingのためのscoringをする。
 
 		moves[movenum] = uint8_t(index);
 		const uint64_t flipped = flip(player, opponent, index);
@@ -1784,7 +1744,6 @@ int32_t optimal_reopening_alphabeta(const uint64_t _player, const uint64_t _oppo
 		const uint64_t next_opponent = player ^ (flipped | (1ULL << index));
 
 		if (node_kind == REOPENING_AB_PV_NODE) {
-			//PVノードの場合、"本筋"を最初に探索する。それ以外の手の探索順序はどうであっても最適性は保たれる。
 			if (pv_move_code == encode_bb({ next_player, next_opponent })) {
 				assert(pv_found == false);
 				move_score[movenum] = 1LL << 50;
@@ -1793,15 +1752,10 @@ int32_t optimal_reopening_alphabeta(const uint64_t _player, const uint64_t _oppo
 			else move_score[movenum] = move_scoring(player, opponent, index);
 		}
 		else if (node_kind == REOPENING_AB_ALL_NODE || node_kind == REOPENING_AB_PV_DASH_NODE) {
-			//ALLノードまたはP'ノードの場合、どういう順に探索しようとも"最適性"が保たれる。
 			move_score[movenum] = move_scoring(player, opponent, index);
 		}
 		else if (node_kind == REOPENING_AB_CUT_NODE || node_kind == REOPENING_AB_ALL_DASH_NODE) {
-			//CUTノードの場合、fail-highする手を最初に探索すれば"最適性"が保たれる。
-			//A'ノードの場合、"最適性"を保つためには最善手を最初に探索する必要がある。
-			//いずれも2手目以降はどういう順に探索しようとも"最適性"が保たれる。
 
-			//上でnegascout探索をしているので、chosen_moveには"最適性"を保つための手が入っている。
 			if (chosen_move == moves[movenum]) {
 				move_score[movenum] = 1LL << 50;
 				pv_found = true;
@@ -1925,13 +1879,11 @@ void try_negascout() {
 	std::cout << "TT_THRESHOLD = " << TT_THRESHOLD << std::endl;
 	std::cout << "ENDGAME_THRESHOLD = " << ENDGAME_THRESHOLD << std::endl;
 
-	//以下はwipeoutをtableに書かない古いバージョンのデータ
 	/*
 	TT_THRESHOLD=26, ENDGAME_THRESHOLD=6
 	score = -4
 	transposition_table.size() = 106083179
 	transposition_table.get_bitlen() = 28
-	70分くらい
 	*/
 
 	return;
@@ -1976,7 +1928,6 @@ void try_optimal_alphabeta(const std::array<uint64_t, 2> initial_position, const
 		std::cout << i << ", " << num_disc_count[i] << std::endl;
 	}
 
-	//optimal_ab_transposition_tableをファイル出力する。
 	{
 		std::ofstream writing_file;
 		const std::string filename = std::string("optimal_ab_transposition_table") + obf67.substr(0, 64) + std::string(".csv");
@@ -2050,7 +2001,6 @@ void try_optimal_reopening_alphabeta(const std::array<uint64_t, 2> initial_posit
 		std::cout << i << ", " << num_disc_count[i] << std::endl;
 	}
 
-	//optimal_reopening_ab_transposition_tableをファイル出力する。
 	{
 		std::ofstream writing_file;
 		const std::string filename = std::string("optimal_reopening_ab_transposition_table") + obf67.substr(0, 64) + std::string(".csv");
@@ -2074,7 +2024,6 @@ void try_optimal_reopening_alphabeta(const std::array<uint64_t, 2> initial_posit
 		std::filesystem::rename(tmp_filename, filename);
 	}
 
-	// //transposition_tableをファイル出力する。
 	// if (ENDGAME_THRESHOLD != -1){
 	// 	std::ofstream writing_file;
 	// 	const std::string filename = std::string("transposition_table") + obf67.substr(0, 64) + std::string(".csv");
@@ -2102,7 +2051,6 @@ void try_optimal_reopening_alphabeta(const std::array<uint64_t, 2> initial_posit
 
 
 template<bool is_reopening>void postprocess1(const std::string input_path, const std::string output_path, const std::string unique_output_suffix) {
-	//input_pathがディレクトリのpathを指しているとする。そこにあるファイル名のうち対象となるものを全て取得する。
 	std::vector<std::string> filenames;
 	const std::regex csv_filetype(is_reopening ? R"(optimal_reopening_ab_transposition_table[-OX]{64}\.csv)" : R"(optimal_ab_transposition_table[-OX]{64}\.csv)");
 	for (const auto& entry : std::filesystem::directory_iterator(input_path)) {
@@ -2111,14 +2059,12 @@ template<bool is_reopening>void postprocess1(const std::string input_path, const
 		filenames.push_back(filename);
 	}
 
-	//例：
 	//obf,disccount,nodekindcode,lowerbound,upperbound
 	//---------------------------OX------XO--------------------------- X;,4,1,-4,-4
 	const std::regex data_linetype(R"(([-OX]{64}\s[OX];),(\d+),(\d+),(-?\d+),(-?\d+))");
 	std::vector<std::vector<std::pair<uint64_t, std::array<int16_t, 3>>>> data(37);
 	for (const auto filename : filenames) {
 		std::vector<std::string> lines;
-		//ファイルを読み込んで1行ずつのデータを取得する。
 		{
 			std::ifstream reading_file;
 			reading_file.open(input_path + std::string("/") + filename, std::ios::in);
@@ -2130,7 +2076,6 @@ template<bool is_reopening>void postprocess1(const std::string input_path, const
 			reading_file.close();
 		}
 
-		//data_linetypeにマッチする行について、要素たちを取り出す。
 
 		// std::smatch match;
 		// for (const std::string line: lines){
@@ -2143,7 +2088,6 @@ template<bool is_reopening>void postprocess1(const std::string input_path, const
 		// 		std::array<int16_t, 3>{
 		// 			int16_t(std::stoi(match[3].str())),
 		// 			int16_t(std::stoi(match[4].str())),
-		// 			int16_t(std::stoi(match[5].str()))//note: std::from_charsで高速化できるかもしれない。
 		// 		}
 		// 	));
 		// 	assert(0 < data[disccount].back().second[0] && data[disccount].back().second[0] < 32);
@@ -2151,20 +2095,16 @@ template<bool is_reopening>void postprocess1(const std::string input_path, const
 		// 	assert(-36 <= data[disccount].back().second[2] && data[disccount].back().second[2] <= 36);
 		// }
 
-		//上のコードは遅いので、以下のコードに置き換える。lines[0]にはヘッダーが入っているので、それを飛ばす。
 		char board_state[68] = {};
 		for (size_t i = 0; i < lines.size(); ++i) {
 			const char* cstr = lines[i].c_str();
 			const char* pattern = cstr;
 
-			// ボードの状態を読み取る
 			strncpy(board_state, pattern, 67);
-			pattern += 68; // obf + コンマ
+			pattern += 68;
 
-			// ディスクカウントを読み取る
 			int disccount, nodekindcode, lowerbound, upperbound;
 
-			//patternの次がコンマなら1桁、そうでないなら2桁の数字が続くので、disccountに代入する。
 			if (*(pattern + 1) == ',') {
 				disccount = *pattern - '0';
 				pattern += 2;
@@ -2223,11 +2163,9 @@ template<bool is_reopening>void postprocess1(const std::string input_path, const
 			}
 			else assert(false);
 
-			// board_stateとして得た情報をbitboardに変換
 			std::array<uint64_t, 2> bb = obf67_to_bb(board_state);
 			uint64_t encoded = encode_bb(board_unique(obf67_to_bb(board_state)));
 
-			// データを追加
 			data[disccount].push_back(
 				std::make_pair(
 					encoded,
@@ -2249,13 +2187,11 @@ template<bool is_reopening>void postprocess1(const std::string input_path, const
 			return a.first < b.first;
 			});
 
-		//重複除去の準備をする。重複範囲をみつけたら、いい感じにマージしてから全要素のsecondをその値にする。
 		for (size_t i = 0; i < data[n_disc].size() - 1; ++i) {
 			if (data[n_disc][i].first != data[n_disc][i + 1].first) continue;
 			size_t j = i + 1;
 			while (j < data[n_disc].size() && data[n_disc][i].first == data[n_disc][j].first) ++j;
 
-			//この時点で、data[n_disc][i]からdata[n_disc][j-1]までが重複している。
 
 			int16_t nodekindcode = 0, lowerbound = -36, upperbound = 36;
 			for (auto k = i; k < j; ++k) {
@@ -2284,7 +2220,6 @@ template<bool is_reopening>void postprocess1(const std::string input_path, const
 		}
 
 		data[n_disc].erase(std::unique(data[n_disc].begin(), data[n_disc].end()), data[n_disc].end());
-		//data[n_disc]をテキストファイル出力する。
 		{
 			std::ofstream writing_file;
 			const std::string filename =
@@ -2314,15 +2249,12 @@ template<bool is_reopening>void postprocess1(const std::string input_path, const
 
 template<bool is_reopening>void postprocess3_check_sorted_and_dedup_board(const std::string input_filepath, const std::string output_filepath) {
 
-	//ファイルの各行が何らかの基準でソートされていると仮定する。結果として同じ盤面が連続していることも仮定する。
 
-	//ファイルのバイト数を取得して行数を計算する。
 	const std::filesystem::path path(input_filepath);
 	const uint64_t filesize = std::filesystem::file_size(path);
 	assert(filesize % 13 == 0);
 	const uint64_t n_lines = filesize / 13;
 
-	//ファイルを読み込んで1行ずつのデータを取得する。重複をみつけて、ユニークな盤面の数を取得する。
 	uint64_t n_unique_boards = 0;
 	{
 		std::ifstream reading_file;
@@ -2345,7 +2277,6 @@ template<bool is_reopening>void postprocess3_check_sorted_and_dedup_board(const 
 
 	std::vector<std::pair<uint64_t, std::array<int8_t, 3>>> data(n_unique_boards);
 
-	//ファイルを読み込んで1行ずつのデータを取得する。重複をみつけたらいい感じにマージする。
 	{
 		std::ifstream reading_file;
 		reading_file.open(input_filepath, std::ios::in);
@@ -2408,7 +2339,6 @@ template<bool is_reopening>void postprocess3_check_sorted_and_dedup_board(const 
 		}
 	}
 
-	//出力する。
 	{
 		std::ofstream writing_file;
 		const std::string tmp_output_filepath = output_filepath + std::string(".tmp");
@@ -2432,7 +2362,6 @@ template<bool is_reopening>void postprocess3_check_sorted_and_dedup_board(const 
 }
 
 uint64_t binarysearch_board(const std::vector<uint64_t> &after_board, const uint64_t code) {
-	//after_boardのなかに、codeがあるか二分探索で探す。あればそのindexを返し、なければ0xFFFF'FFFF'FFFF'FFFFULLを返す。
 	int64_t left = -1, right = static_cast<int64_t>(after_board.size());
 	while (left + 1 < right) {
 		const int64_t mid = (left + right) / 2;
@@ -2446,13 +2375,7 @@ uint64_t binarysearch_board(const std::vector<uint64_t> &after_board, const uint
 }
 
 template<bool is_reopening>void postprocess4_check_consistency(const std::string before_filepath, const std::string after_filepath, const std::string output_filepath) {
-	// before_filepathにはpostprocess3まで完了したf"optimal_reopening_ab_table_all_{n}.txt"のファイルパスが入っているとする。
-	// after_filepathにはpostprocess3まで完了したf"optimal_reopening_ab_table_all_{n+1}.txt"のファイルパスもしくは""が入っているとする。
-	// before_filepath上のすべての盤面の情報について、1手読みしてafter_filepathの情報と照合したときに整合していることを確認する。
 	//
-	//物理メモリ128GB, 論理CPU数32の環境を想定する。
-	//after側は二分探索したいので全情報を物理メモリに乗せる必要があるが、最大7,372,010,761通り(32石)あり、その場合81,092,118,371Bを要する。
-	//before側を一気にロードするのではなくチャンクごとにロードすればよい。
 
 	uint64_t after_n_lines = 0;
 	if (after_filepath.size() > 0) {
@@ -2499,36 +2422,6 @@ template<bool is_reopening>void postprocess4_check_consistency(const std::string
 	uint64_t read_count = 0;
 	constexpr uint64_t chunk_size = 640;
 
-	/*
-	考察
-
-	チェックすべき事柄一覧：
-
-	beforeがREOPENING_AB_PV_NODEの場合:
-	(1) bestがPVかobvious
-	(2) それ以外全てがALL_DASHかobviousか   //6*6オセロでPV_NODEのスコアが36になることは決してないのでafterは必ずヒットする
-	(3) 全てがlowerbound==upperboundである
-	(4) best⇔beforeとafterのlowerboundとupperboundが一致する。
-	beforeがREOPENING_AB_ALL_DASH_NODEの場合:
-	(5) bestがALL_DASHかobviousか上位互換（PV）
-	(6) （チェック不要）best以外のnode_kindはなんでもいい
-	(7) bestがlowerbound==upperboundである
-	(8) best⇔beforeとafterのlowerboundとupperboundが一致する。
-	beforeがREOPENING_AB_PV_DASH_NODEの場合:
-	(9) afterの全てがALL_DASHかobviousか上位互換（PV）   //6*6オセロでPV_DASH_NODEのスコアが36になることは決してないのでafterは必ずヒットする
-	(10) 全てがlowerbound==upperboundである
-	(11) best⇔beforeとafterのlowerboundとupperboundが一致する。
-	beforeがREOPENING_AB_ALL_NODEの場合:
-	(12) 全てがCUTかALLかobviousか上位互換（lowerbound==upperbound）  //CUT,ALLにおいては、transposition table上で値が一意なものならなんでも使ってreturnする。
-	(13) beforeのupperbound（=afterのlowerbound）だけ確認すればいい。
-	beforeがREOPENING_AB_CUT_NODEの場合:
-	(14) 一つ以上存在して、CUTかALLかobviousか上位互換（lowerbound==upperbound）  //CUT,ALLにおいては、transposition table上で値が一意なものならなんでも使ってreturnする。
-	(15) beforeのlowerbound（=afterのupperbound）だけ確認すればいい。
-	(16) afterがヒットしないのはbeforeがCUT_NODEの場合だけ
-
-	この処理はopenmpで並列化できる。
-
-	*/
 
 	const int64_t n_chunk = (before_n_lines + chunk_size - 1) / chunk_size;
 
@@ -2603,7 +2496,6 @@ template<bool is_reopening>void postprocess4_check_consistency(const std::string
 				uint64_t next_bb_moves = get_moves(next_player, next_opponent) & MASK_8x8to6x6;
 				int32_t pass_coef = 1;
 
-				//パスを考慮する。自明（終局）かどうか調べる。
 				if (next_bb_moves == 0) {
 					if ((get_moves(next_opponent, next_player) & MASK_8x8to6x6) != 0) { // pass
 						std::swap(next_player, next_opponent);
@@ -2619,7 +2511,6 @@ template<bool is_reopening>void postprocess4_check_consistency(const std::string
 					}
 				}
 
-				//自明でないなら、after_boardにあるはず。(直前がCUT NODEなら別。あるいはbeforeのスコアが+36ならafterのALLとCUTは省略されるので別)
 				const uint64_t next_bb = encode_bb(board_unique({ next_player, next_opponent }));
 				const uint64_t index_in_after = binarysearch_board(after_board, next_bb);
 				if (index_in_after == 0xFFFF'FFFF'FFFF'FFFFULL) {
@@ -2685,22 +2576,21 @@ template<bool is_reopening>void postprocess4_check_consistency(const std::string
 			if (nodekindcode_before & (is_reopening ? (REOPENING_AB_PV_NODE | REOPENING_AB_ALL_DASH_NODE | REOPENING_AB_PV_DASH_NODE) : OPTIMAL_AB_PV_NODE)) {
 				assert(is_best_found || best_obvious_score == best_observed_after_upperbound);//(1),(4),(5),(8),(9),(11)
 				assert(lowerbound_before_in_table == best_observed_after_lowerbound
-					&& upperbound_before_in_table == best_observed_after_upperbound);//(4),(8),(11). obviousがbestの場合をケアしている
+					&& upperbound_before_in_table == best_observed_after_upperbound);
 				assert(best_observed_after_lowerbound == best_observed_after_upperbound);//(7)
 			}
 
 			if (nodekindcode_before & (is_reopening ? REOPENING_AB_ALL_NODE : OPTIMAL_AB_ALL_NODE)) {
-				assert(std::max(best_obvious_score, best_observed_after_upperbound) <= upperbound_before_in_table);//(12),(13). obviousを含めて全てが条件を満たすことを確認している
+				assert(std::max(best_obvious_score, best_observed_after_upperbound) <= upperbound_before_in_table);
 			}
 
 			if (nodekindcode_before & (is_reopening ? REOPENING_AB_CUT_NODE : OPTIMAL_AB_CUT_NODE)) {
-				assert(lowerbound_before_in_table <= std::max(best_obvious_score, best_observed_after_lowerbound));//(14),(15). obviousを含めて全てが条件を満たすことを確認している
+				assert(lowerbound_before_in_table <= std::max(best_obvious_score, best_observed_after_lowerbound));
 			}
 		}
 	}
 
 
-	//出力する。
 	{
 		std::ofstream writing_file;
 		const std::string tmp_output_filepath = output_filepath + std::string(".tmp");
@@ -2720,7 +2610,6 @@ int main(int argc, char *argv[]) {
 
 
 
-	// 引数をstd::vector<std::string>に変換
 	std::vector<std::string> args(argv, argv + argc);
 
 	if (args.size() == 1) {

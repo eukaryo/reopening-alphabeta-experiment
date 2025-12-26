@@ -67,7 +67,6 @@ def compute_all_10_18():
             command = f"./reopening reopening-ab {columns[2]} {columns[3]} {columns[4]} {columns[0]}"
             commands.append(command)
 
-    # 難易度に大きな差があり、実行時間が数分～数時間かかるため、ソートして難しいものから実行する
     def keyfunc(x):
         nodekindcode = int(x.split(" ")[2])
         nodedifficulty = 0
