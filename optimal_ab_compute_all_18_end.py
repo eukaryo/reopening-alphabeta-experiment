@@ -116,7 +116,6 @@ def optimal_alphabeta_compute_all_18_end():
                     lines_dict[columns[0]] = (nodekindcode, lowerbound, upperbound)
 
 
-    # 難易度が最大のものでも実行時間はたかだか数分なので、シャッフルして実行する
     commands = []
     for k, v in lines_dict.items():
         commands.append(f"./reopening optimal-alphabeta {v[0]} {v[1]} {v[2]} {k}")

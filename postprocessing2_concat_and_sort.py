@@ -25,7 +25,6 @@ def execute(disccount):
 
     print(f"start: {disccount=}")
 
-    # SOURCE_ROOT_DIRの中のファイルのうち、f"optimal_reopening_ab_table_{disccount}"ではじまり".txt"で終わるファイルをディレクトリを再帰的に走査して列挙
     filenames = []
     for root, _, files in os.walk(SOURCE_ROOT_DIR):
         for file in files:
@@ -34,14 +33,12 @@ def execute(disccount):
     
     print(f"{len(filenames)=}")
 
-    # ファイルを全て結合したものをf"{TMP_DIR}/optimal_reopening_ab_table_all_{disccount}.txt"に書き込む
     output_tmp_filename = f"{TMP_DIR}/optimal_reopening_ab_table_all_{disccount}.txt.tmp"
     with open(output_tmp_filename, "w") as f_out:
         for filename in filenames:
             with open(filename, "r") as f_in:
                 f_out.write(f_in.read())
 
-    # output_filenameをlinuxのsortコマンドでソートする。一時ファイル置き場にはf"{TMP_DIR}/tmp/以下を指定する。並列実行を許す。
     os.makedirs(f"{TMP_DIR}/tmp/", exist_ok=True)
     os.makedirs(DEST_DIR, exist_ok=True)
     output_filename = f"{DEST_DIR}/optimal_reopening_ab_table_all_{disccount}.txt"

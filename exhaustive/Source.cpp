@@ -66,7 +66,7 @@ void board_unique(const uint64_t P_src, const uint64_t O_src, uint64_t &P_dest, 
 
 	const __m256i tt3lo_ppoo = _mm256_and_si256(_mm256_srlv_epi64(tt2_ppoo, _mm256_set_epi64x(4, 32, 4, 32)), _mm256_set_epi64x(0x0F0F0F0F0F0F0F0FLL, 0x00000000FFFFFFFFLL, 0x0F0F0F0F0F0F0F0FLL, 0x00000000FFFFFFFFLL));
 	const __m256i tt3hi_ppoo = _mm256_and_si256(_mm256_sllv_epi64(tt2_ppoo, _mm256_set_epi64x(4, 32, 4, 32)), _mm256_set_epi64x(0xF0F0F0F0F0F0F0F0LL, 0xFFFFFFFF00000000LL, 0xF0F0F0F0F0F0F0F0LL, 0xFFFFFFFF00000000LL));
-	const __m256i tt3_ppoo = _mm256_or_si256(tt3lo_ppoo, tt3hi_ppoo);//この時点で、上位から順に(P横鏡映、P縦鏡映、O横鏡映、O縦鏡映)
+	const __m256i tt3_ppoo = _mm256_or_si256(tt3lo_ppoo, tt3hi_ppoo);
 
 	constexpr auto f = [](const uint8_t i) {
 		return uint8_t(((i & 1) << 3) + ((i & 2) << 1) + ((i & 4) >> 1) + ((i & 8) >> 3));
@@ -82,8 +82,8 @@ void board_unique(const uint64_t P_src, const uint64_t O_src, uint64_t &P_dest, 
 	const __m256i rva2 = _mm256_shuffle_epi8(rvr1, rva1);
 	const __m256i rva3 = _mm256_shuffle_epi8(rva2, _mm256_set_epi8(8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
 	const __m256i rva4 = _mm256_shuffle_epi32(rva3, 0b00001110);
-	const __m256i rva5 = _mm256_add_epi32(rva4, _mm256_slli_epi64(rva3, 4));//この時点で、上位から順に(any、P逆転、any、O逆転)
-	const __m256i rev_ppoo = _mm256_blend_epi32(rva5, bb0_ppoo, 0b11001100);//この時点で、上位から順に(Pそのまま、P逆転、Oそのまま、O逆転)
+	const __m256i rva5 = _mm256_add_epi32(rva4, _mm256_slli_epi64(rva3, 4));
+	const __m256i rev_ppoo = _mm256_blend_epi32(rva5, bb0_ppoo, 0b11001100);
 
 	const __m256i x1_t = _mm256_and_si256(_mm256_xor_si256(tt3_ppoo, _mm256_srli_epi64(tt3_ppoo, 7)), _mm256_set1_epi64x(0x00AA00AA00AA00AALL));
 	const __m256i x1_r = _mm256_and_si256(_mm256_xor_si256(rev_ppoo, _mm256_srli_epi64(rev_ppoo, 7)), _mm256_set1_epi64x(0x00AA00AA00AA00AALL));
@@ -95,8 +95,8 @@ void board_unique(const uint64_t P_src, const uint64_t O_src, uint64_t &P_dest, 
 	const __m256i y2_r = _mm256_xor_si256(y1_r, _mm256_xor_si256(x2_r, _mm256_slli_epi64(x2_r, 14)));
 	const __m256i x3_t = _mm256_and_si256(_mm256_xor_si256(y2_t, _mm256_srli_epi64(y2_t, 28)), _mm256_set1_epi64x(0x00000000F0F0F0F0LL));
 	const __m256i x3_r = _mm256_and_si256(_mm256_xor_si256(y2_r, _mm256_srli_epi64(y2_r, 28)), _mm256_set1_epi64x(0x00000000F0F0F0F0LL));
-	const __m256i zz_t = _mm256_xor_si256(y2_t, _mm256_xor_si256(x3_t, _mm256_slli_epi64(x3_t, 28)));//この時点で、tt3_ppooの各要素を行列転置したもの
-	const __m256i zz_r = _mm256_xor_si256(y2_r, _mm256_xor_si256(x3_r, _mm256_slli_epi64(x3_r, 28)));//この時点で、rev_ppooの各要素を行列転置したもの
+	const __m256i zz_t = _mm256_xor_si256(y2_t, _mm256_xor_si256(x3_t, _mm256_slli_epi64(x3_t, 28)));
+	const __m256i zz_r = _mm256_xor_si256(y2_r, _mm256_xor_si256(x3_r, _mm256_slli_epi64(x3_r, 28)));
 
 	alignas(32) uint64_t bb[16] = {};
 	_mm256_storeu_si256((__m256i*)(&(bb[0])), tt3_ppoo);
@@ -333,8 +333,6 @@ void test(const int seed, const int length) {
 
 inline uint32_t bitscan_forward64(const uint64_t x, uint32_t *dest) {
 
-	//xが非ゼロなら、立っているビットのうち最下位のものの位置をdestに代入して、非ゼロの値を返す。
-	//xがゼロなら、ゼロを返す。このときのdestの値は未定義である。
 
 #ifdef _MSC_VER
 	return _BitScanForward64(reinterpret_cast<unsigned long *>(dest), x);
@@ -508,9 +506,8 @@ private:
 	std::string filename_;
 	int64_t buffer_lines_size;
 	int64_t buffer_lines_index;
-	bool end_flag; //TODO(priority:low): これはいらないかもしれない。getlineの仕様を調べる。
+	bool end_flag;
 
-	//ファイルを読み切ったとして、次の連番ファイルを開きtrueを返す。開けなかったか連番じゃなかったらfalseを返す。
 	bool change_file() {
 		reading_file.close();
 		if (filenumber == -1) {
@@ -529,7 +526,6 @@ private:
 		return false;
 	}
 
-	//ファイルからreading_buf_size行読み込んで、buffer_linesに格納する。buffer_linesが空のときに呼ぶ。
 	void read_lines() {
 		std::string line_getline;
 		if (end_flag)return;
@@ -550,7 +546,6 @@ private:
 
 public:
 
-	//コンストラクタ。ファイル名を受け取って開く。
 	BufferedReader(const std::string filename, const int bufsize = BUFSIZE) {
 		std::error_code ec;
 		if (std::filesystem::exists(filename, ec)) {
@@ -580,7 +575,6 @@ public:
 		read_lines();
 	}
 
-	//ユーザーに１行渡す。
 	bool get_line(std::array<char, N> &answer) {
 		if (buffer_lines_index == buffer_lines_size)read_lines();
 		if (buffer_lines_index == buffer_lines_size)return false;
@@ -604,7 +598,6 @@ private:
 
 	const int64_t FILESIZE_THRESHOLD = 20LL * 1000LL * 1000LL * 1000LL;
 
-	//連番モードで書き込んでいてファイルサイズがしきい値を超えていたら、次のファイルに切り替える。
 	void check_and_change_file() {
 		if (filenumber == -1) return;
 		std::error_code ec;
@@ -625,7 +618,6 @@ private:
 		}
 	}
 
-	//buffer_linesをファイルに書き込んで、buffer_linesを空にする。
 	void write_lines() {
 		check_and_change_file();
 		buffer_lines[(N + 1) * buffer_lines_index] = '\0';
@@ -635,7 +627,6 @@ private:
 
 public:
 
-	//コンストラクタ。ファイル名を受け取って開く。
 	BufferedWriter(const std::string filename, const bool renban = false, const int bufsize = 20 * 1000 * 1000) {
 		is_empty = false;
 		if (renban) {
@@ -667,7 +658,6 @@ public:
 		is_empty = true;
 	}
 
-	//ユーザーから１行受け取る。
 	void put_line(const std::array<char, N> &line) {
 		assert(!is_empty);
 		for (int i = 0; i < N; ++i) {
@@ -681,14 +671,12 @@ public:
 		}
 	}
 
-	//ユーザーの指示で、バッファに残っているものを書き込む。
 	void flush() {
 		assert(!is_empty);
 		write_lines();
 		buffer_lines_index = 0;
 	}
 
-	//ユーザー側で構築された（複数の）行を一気に書き込む。
 	void put_bulk(const std::vector<char> &lines){
 		assert(!is_empty);
 		write_lines();
@@ -726,15 +714,12 @@ int64_t get_sum_filesize(const std::string filename) {
 
 int32_t ComputeFinalScore(const uint64_t player, const uint64_t opponent) {
 
-	//引数の盤面が即詰みだと仮定し、最終スコアを返す。
 
 	const int32_t n_discs_p = _mm_popcnt_u64(player);
 	const int32_t n_discs_o = _mm_popcnt_u64(opponent);
 
 	int32_t score = n_discs_p - n_discs_o;
 
-	//空白マスが残っている状態で両者とも打つ場所が無い場合は試合終了だが、
-	//そのとき引き分けでないならば、空白マスは勝者のポイントに加算されるというルールがある。
 	if (score < 0) score -= 36 - n_discs_p - n_discs_o;
 	else if (score > 0) score += 36 - n_discs_p - n_discs_o;
 
@@ -782,7 +767,7 @@ void firststep_enumerate_legalmoves(const int N, const std::string reading_filen
 		//const std::string writing_filename = "forward_" + zerofill_itos(N - 0) + "_boardlist-un-sort-uniquefy";
 
 	const auto reading_filesize = get_sum_filesize(reading_filename);
-	assert(reading_filesize % 10 == 0); // 9文字形式なので、改行コード込みで1行あたり10文字。
+	assert(reading_filesize % 10 == 0);
 	const uint64_t reading_linesize = reading_filesize / 10;
 
 	BufferedReader<9>reading_file(reading_filename);
@@ -831,7 +816,7 @@ void firststep_enumerate_legalmoves_countonly(const int N, const std::string rea
 		//const std::string reading_filename = "forward_" + zerofill_itos(N - 1) + "_boardlist";
 
 	const auto reading_filesize = get_sum_filesize(reading_filename);
-	assert(reading_filesize % 10 == 0); // 9文字形式なので、改行コード込みで1行あたり10文字。
+	assert(reading_filesize % 10 == 0);
 	const uint64_t reading_linesize = reading_filesize / 10;
 
 	BufferedReader<9>reading_file(reading_filename);
@@ -877,10 +862,7 @@ enum{
 const int64_t LINE_CHUNK_SIZE = 50000;
 
 std::vector<std::array<uint64_t, 4>> descending_sort_singlefile_and_get_chunkdata(const std::string filename) {
-	//filenameのファイルを読み込んで、降順ソートして、重複を削除して、上書きする。
-	//上書きした新しいファイルのうち、2^16行ごとにサンプリングして、その行の64bit表現をkeyとし、行番号をvalueとするmapを返す。
 
-	//存在確認とファイルサイズの取得。
 	std::error_code ec;
 	if (!std::filesystem::exists(filename, ec)){
 		std::cout << "descending_sort_singlefile_and_get_chunkdata file doesnot exist. filename=" << filename << std::endl;
@@ -894,7 +876,6 @@ std::vector<std::array<uint64_t, 4>> descending_sort_singlefile_and_get_chunkdat
 		assert(false);
 	}
 
-	//ファイルを読み込んでtmp_stringに格納する。
 	std::vector<char> tmp_string(filesize + 1);
 	std::ifstream reading_file;
 	reading_file.open(filename, std::ios::in);
@@ -905,7 +886,6 @@ std::vector<std::array<uint64_t, 4>> descending_sort_singlefile_and_get_chunkdat
 	reading_file.read(tmp_string.data(), filesize);
 	reading_file.close();
 
-	//tmp_stringを1行ずつ64bit整数に変換する
 	std::vector<uint64_t> codes(linesize);
 #pragma omp parallel for schedule(static)
 	for(int64_t j = 0; j < linesize; ++j){
@@ -914,30 +894,25 @@ std::vector<std::array<uint64_t, 4>> descending_sort_singlefile_and_get_chunkdat
 			line[k] = tmp_string[j * 10 + k];
 		}
 		assert(tmp_string[j * 10 + 9] == '\n');
-		//xorshift64plusを使わない理由は、zfsの透過的圧縮がうまく働くようにするため。
-		codes[j] = -encode_bb(decode_string_bb(line));//マイナスをつけて降順ソートにする。
+		codes[j] = -encode_bb(decode_string_bb(line));
 	}
 
-	//降順ソートして重複を削除する。
 	__gnu_parallel::sort(codes.begin(), codes.end());
 	codes.erase(std::unique(codes.begin(), codes.end()), codes.end());
 
-	//書き戻すときにtmp_stringを再利用するので、resizeしておく。
 	const int64_t lines_unique_size = codes.size();
 	tmp_string.resize(lines_unique_size * 10 + 1);
 	tmp_string[lines_unique_size * 10] = '\0';
 
-	//ソートと重複削除した64bit整数表現を逆変換してtmp_stringに書き戻す。
 #pragma omp parallel for schedule(static)
 	for(int64_t j = 0; j < lines_unique_size; ++j){
-		std::array<char, 9> line = encode_string_bb(decode_bb(-codes[j]));//マイナスをつけて降順ソートにしたので、ここでマイナスを外す。
+		std::array<char, 9> line = encode_string_bb(decode_bb(-codes[j]));
 		for(int k = 0; k < 9; ++k){
 			tmp_string[j * 10 + k] = line[k];
 		}
 		tmp_string[j * 10 + 9] = '\n';
 	}
 
-	//チャンクに分ける。
 	std::vector<std::array<uint64_t, 4>> chunkdata;
 	for(int64_t j = 0; j < lines_unique_size;){
 		std::array<uint64_t, 4> chunkdata_element;
@@ -948,8 +923,8 @@ std::vector<std::array<uint64_t, 4>> descending_sort_singlefile_and_get_chunkdat
 		chunkdata_element[CHUNKDATA_VALUE_UPPERBOUND] = encode_bb(decode_string_bb(line));
 		chunkdata_element[CHUNKDATA_INDEX_LOWERBOUND] = j;
 		int64_t rbegin = std::min(j + LINE_CHUNK_SIZE - 1LL, lines_unique_size - 1LL);
-		assert(j < rbegin);//大きさ1のchunkは存在しない。
-		if (j + LINE_CHUNK_SIZE == lines_unique_size - 1LL)rbegin = lines_unique_size - 1LL;//上のassertを達成するために必要
+		assert(j < rbegin);
+		if (j + LINE_CHUNK_SIZE == lines_unique_size - 1LL)rbegin = lines_unique_size - 1LL;
 		for(int k = 0; k < 9; ++k){
 			line[k] = tmp_string[rbegin * 10 + k];
 		}
@@ -967,7 +942,6 @@ std::vector<std::array<uint64_t, 4>> descending_sort_singlefile_and_get_chunkdat
 		assert(chunkdata[j - 1][CHUNKDATA_INDEX_UPPERBOUND] + 1 == chunkdata[j][CHUNKDATA_INDEX_LOWERBOUND]);
 	}
 
-	//tmp_stringをファイルに書き戻す。
 	std::filesystem::remove(filename);
 	std::ofstream writing_file;
 	writing_file.open(filename, std::ios::out);
@@ -982,19 +956,12 @@ std::vector<std::array<uint64_t, 4>> descending_sort_singlefile_and_get_chunkdat
 }
 /*
 int64_t find_suitable_line_from_singlefile(const std::string filename, const uint64_t target_code, std::map<uint64_t, int64_t>& code_map){
-	//filenameのファイルの中身は行ごとにその64bit表現の値で降順ソート＆重複除去されているとする。
-	//その行番号のうち、行の文字列を64bit表現として見た時の値がtarget_code以下であるような最小の行番号を探して、その行番号を返す。
-	//ただしそのような行番号が存在しない（i.e.,ファイルの末尾の行の値よりもtarget_codeのほうが小さい）場合は、std::numeric_limits<int64_t>::max()を返す。
-	//code_mapは、行の64bit表現をkeyとし、値がkey以下であるような最小の行番号をvalueとする。
-	//探索においてストレージにアクセスして得た結果はcode_mapに格納しておく。
 
 	std::cout << "start find_suitable_line_from_singlefile. filename=" << filename << " target_code=" << target_code << std::endl;
 
-	//code_mapの最大値のkeyとvalueを取得する。
 	const auto it1 = code_map.rbegin();
 	const uint64_t max_key_code = it1->first;
-	assert(it1->second == 0);//降順ソートされているので添字番号はゼロ
-	//最小値
+	assert(it1->second == 0);
 	const auto it2 = code_map.begin();
 	const uint64_t min_key_code = it2->first;
 	const int64_t min_value_index = it2->second;
@@ -1013,7 +980,6 @@ int64_t find_suitable_line_from_singlefile(const std::string filename, const uin
 		return std::numeric_limits<int64_t>::max();
 	}
 
-	//code_mapにtargetが存在するならそのvalueを返す。
 	const auto it3 = code_map.find(target_code);
 	if(it3 != code_map.end()){
 		std::cout << "end find_suitable_line_from_singlefile. filename=" << filename << " target_code=" << target_code << " it3->second=" << it3->second << std::endl;
@@ -1071,8 +1037,6 @@ int64_t find_suitable_line_from_singlefile(const std::string filename, const uin
 }
 
 void compute_range_from_code_maps(const std::vector<std::map<uint64_t, int64_t>> &code_maps, const uint64_t target_code, int64_t &lowerbound_remaining_lines, int64_t &upperbound_remaining_lines) {
-	//target_codeより大きい要素数の上界と下界を求めて返す。
-	//code_mapsの各要素のmapについて、元となる配列は降順ソートされていることを仮定する。また、mapの最小値は元配列の最後の要素であることを仮定する。
 
 	std::cout << "start compute_range_from_code_maps. target_code=" << target_code << std::endl;
 
@@ -1081,14 +1045,12 @@ void compute_range_from_code_maps(const std::vector<std::map<uint64_t, int64_t>>
 
 	for(int64_t i = 0; i < code_maps.size(); ++i){
 
-		//code_maps[i]の最大値のvalueを取得する。
 		const auto it1 = code_maps[i].rbegin();
 		const uint64_t max_key_code = it1->first;
 		if(max_key_code <= target_code){
 			continue;
 		}
 
-		//code_maps[i]の最小値のvalueを取得する。
 		const auto it2 = code_maps[i].begin();
 		const uint64_t min_key_code = it2->first;
 		if(min_key_code == target_code){
@@ -1097,24 +1059,24 @@ void compute_range_from_code_maps(const std::vector<std::map<uint64_t, int64_t>>
 			continue;
 		}
 		if(min_key_code > target_code){
-			lowerbound_remaining_lines += it2->second + 1;//secondは添字番号なので、全要素が条件を満たすときには+1する。
+			lowerbound_remaining_lines += it2->second + 1;
 			upperbound_remaining_lines += it2->second + 1;
 			continue;
 		}
 
-		const auto it3 = code_maps[i].upper_bound(target_code);//it3は、target_codeより大きい最小のkeyを持つ要素を指す。
-		assert(it3 != code_maps[i].end());//it2より後ろの要素を指している。it1を指している可能性はある。
+		const auto it3 = code_maps[i].upper_bound(target_code);
+		assert(it3 != code_maps[i].end());
 		const auto it4 = std::prev(it3);
-		assert(it4 != code_maps[i].end());//少なくともit2はit3よりも前にあるので、it3の前は必ず存在する。
-		assert(it4->first <= target_code && target_code < it3->first);//upper_boundの定義より、<=と<が成り立つ。
-		assert(it4->second > it3->second);//降順ソートされていて重複除去されているという仮定より。
+		assert(it4 != code_maps[i].end());
+		assert(it4->first <= target_code && target_code < it3->first);
+		assert(it4->second > it3->second);
 		if(it4->first == target_code){
-			lowerbound_remaining_lines += it4->second;//secondは添字番号である。it4の添字番号は条件を満たさず、それ未満のすべてが満たすので、+1しない。
+			lowerbound_remaining_lines += it4->second;
 			upperbound_remaining_lines += it4->second;
 			continue;
 		}
-		upperbound_remaining_lines += it4->second;//it4->secondの添字番号の要素は条件を満たさない。それ未満の全てが満たす場合が上界なので、+1しない。
-		lowerbound_remaining_lines += it3->second + 1;//it3->secondの添字番号の要素は条件を満たす。それ以下のすべても満たす。ゆえに+1する。
+		upperbound_remaining_lines += it4->second;
+		lowerbound_remaining_lines += it3->second + 1;
 	}
 
 	std::cout << "end compute_range_from_code_maps. target_code=" << target_code << " lowerbound=" << lowerbound_remaining_lines << " upperbound=" << upperbound_remaining_lines << std::endl;
@@ -1149,14 +1111,11 @@ void get_mincode_maxcode_and_trim_codemap(
 	max_code = 0;
 	for(int64_t i = 0; i < num_files; ++i){
 		if(linesizes[i] == 0)continue;
-		//全ファイル通しての最大値と最小値を求める。降順ソートされていることに注意する。
 
-		//最初の行は最大値で、code_mapsには既に入っているはず。
 		const auto it1 = code_maps[i].rbegin();
 		assert(it1->second == 0);
 		max_code = std::max(max_code, it1->first);
 
-		//最後の行にseek。最後の行は最小値
 		const std::string filename_ = filename + "_" + std::to_string(i) + ".txt";
 		std::ifstream reading_file;
 		reading_file.open(filename_, std::ios::in);
@@ -1178,22 +1137,13 @@ void get_mincode_maxcode_and_trim_codemap(
 		}
 		else assert(code_maps[i][code] == linesizes[i] - 1);
 
-		//code_map[i]に入っている、最小値未満の値を全て削除する。
 		code_maps[i].erase(code_maps[i].begin(), code_maps[i].find(code));
 	}
 }
 
 std::vector<int64_t> find_suitable_lines_from_ascending_renbanfile(const std::string filename, std::vector<std::map<uint64_t, int64_t>> &code_maps, std::map<int64_t, uint64_t> &mid_history) {
-	//filenameから始まる連番ファイルがあるとする。それらはその64bit表現の値で個別に降順ソート＆重複除去されているとする。
-	//ファイル間ではソートも重複除去もされてないとする。
-	//連番ファイルに書かれている値のうち、その行以下の行の個数が1B~2Bであるような値を探す。
-	//（探し出した値自体がファイル中に存在することは保証しない。）
-	//各ファイルのうちその値以下であるような最小の添字番号たちを返す。
 
-	//code_mapsは、ファイルごとに、行の64bit表現をkeyとし、値がkey以下であるような最小の行番号をvalueとするmapを格納する。
-	//code_mapsの各要素には既にサンプリングされた行の情報が入っているとする。特に最初の行（keyは最大値でvalueはゼロ）が入っていることを仮定して良い。
 
-	//返す添字番号をvalueとするentryは必ず存在する状態で関数が返ることを保証する。
 
 	std::cout << "start find_suitable_lines_from_ascending_renbanfile. filename=" << filename << std::endl;
 
@@ -1208,10 +1158,7 @@ std::vector<int64_t> find_suitable_lines_from_ascending_renbanfile(const std::st
 	get_mincode_maxcode_and_trim_codemap(filename, linesizes, num_files, sum_lines, code_maps, min_code, max_code);
 
 
-	//codeの値で、ファイルの行のうちそれ以下であるような行数の総和が1B~2Bになるようなcodeを二分探索で求めて返す。
 
-	//////////////////TODO：midの値が、ファイルアクセスするまでもなくcode_mapsを見るだけで範囲外だと分かる場合は、ファイルアクセスしないようにする。
-	//////////////////TODO：かつて試みられたmidの値とそれの結果を記録しておいて、それら値のうち今1G~2Gの範囲内になっているものがあればそれを返すようにする。
 
 	auto it_history = mid_history.upper_bound(sum_lines - 1'000'000'000LL);
 	if (it_history != mid_history.end()){
@@ -1228,7 +1175,7 @@ std::vector<int64_t> find_suitable_lines_from_ascending_renbanfile(const std::st
 					const std::string filename_ = filename + "_" + std::to_string(i) + ".txt";
 					answer.push_back(find_suitable_line_from_singlefile(filename_, it_history->second, code_maps[i]));
 					if(answer.back() == std::numeric_limits<int64_t>::max())continue;
-					sum_remaining_lines_mid += answer.back();//answer.back()は、切り取られる最初の行の添字番号なので、それ以下のすべての行が条件を満たす。
+					sum_remaining_lines_mid += answer.back();
 				}
 				assert(1'000'000'000LL <= sum_lines - sum_remaining_lines_mid && sum_lines - sum_remaining_lines_mid <=  2'000'000'000LL);
 
@@ -1271,7 +1218,7 @@ std::vector<int64_t> find_suitable_lines_from_ascending_renbanfile(const std::st
 			const std::string filename_ = filename + "_" + std::to_string(i) + ".txt";
 			answer.push_back(find_suitable_line_from_singlefile(filename_, mid, code_maps[i]));
 			if(answer.back() == std::numeric_limits<int64_t>::max())continue;
-			sum_remaining_lines_mid += answer.back();//answer.back()は、切り取られる最初の行の添字番号なので、それ以下のすべての行が条件を満たす。
+			sum_remaining_lines_mid += answer.back();
 		}
 
 		mid_history[sum_remaining_lines_mid] = mid;
@@ -1294,19 +1241,9 @@ std::vector<int64_t> find_suitable_lines_from_ascending_renbanfile(const std::st
 
 
 std::vector<int64_t> find_suitable_lines_from_ascending_renbanfile_upperbound(const std::string filename, std::vector<std::map<uint64_t, int64_t>> &code_maps, std::map<int64_t, uint64_t> &mid_history, const int64_t num_carry) {
-	//filenameから始まる連番ファイルがあるとする。それらはその64bit表現の値で個別に降順ソート＆重複除去されているとする。
-	//ファイル間ではソートも重複除去もされてないとする。
-	//連番ファイルに書かれている値のうち、その行以下の行の個数の上界が(2B-num_carry)以下であるような最大の値を探す。
-	//（探し出した値自体がファイル中に存在することは保証しない。）
-	//その行以下の行の個数の下界が1B以上ならば、各ファイルのうちその値以下であることが判明している最大の添字番号たちを返す。さもなくば空のvectorを返す。
 
-	//この関数の返り値を受け取ったあと、各ファイルの後ろの部分を読み取ってソートと重複除去を行うわけだが、大きい値についてはまだ読み込んでいないファイル領域にそれ以下の値が存在する可能性に注意せよ。
-	//具体的には、各ファイルを読むときに読んだ最大の値たちのうちの最小値を超える値についてはその可能性がある。ゆえに出力せずに取っておく必要がある。その取っておいてある値の数をnum_carryとして受け取る。
 
-	//code_mapsは、ファイルごとに、行の64bit表現をkeyとし、値がkey以下であるような最小の行番号をvalueとするmapを格納する。
-	//code_mapsの各要素には既にサンプリングされた行の情報が入っているとする。特に最初の行（keyは最大値でvalueはゼロ）が入っていることを仮定して良い。
 	
-	//返す添字番号をvalueとするentryは必ず存在する状態で関数が返ることを保証する。
 
 
 	std::cout << "start find_suitable_lines_from_ascending_renbanfile_upperbound. filename=" << filename << std::endl;
@@ -1328,16 +1265,11 @@ std::vector<int64_t> find_suitable_lines_from_ascending_renbanfile_upperbound(co
 */
 
 std::vector<std::vector<std::array<uint64_t, 4>>> descending_sort_all_files_and_get_chunkdata(const int N, const std::string reading_filename, const std::string writing_filename, int64_t &num_files, std::vector<int64_t>&linesizes){
-	//reading_filenameから始まる連番ファイルはソート済みでも重複なしとも限らないとする。
-	//これらのファイルたちの中身をマージして昇順ソートして重複なしの状態にして、writing_filenameから始まる連番ファイルに書き出す。
-	//reading_filenameから始まる連番ファイルはソート済みでも重複なしとも限らないとする。
-	//reading_filenameのファイルは削除する。writing_filenameのファイルだけが最終的に残る。
 	
 	assert(reading_filename != writing_filename);
 	
 	std::vector<std::vector<std::array<uint64_t, 4>>>chunk_data_vec;
 
-	//まず、readingのファイルたちを読み込んで、降順ソートして、重複を削除して、上書きする。
 	linesizes.clear();
 	num_files = 0;
 	for(;; ++num_files){
@@ -1356,19 +1288,13 @@ std::vector<std::vector<std::array<uint64_t, 4>>> descending_sort_all_files_and_
 
 
 void renbansort(const int N, const std::string reading_filename, const std::string writing_filename) {
-	//reading_filenameから始まる連番ファイルはソート済みでも重複なしとも限らないとする。
-	//これらのファイルたちの中身をマージして昇順ソートして重複なしの状態にして、writing_filenameから始まる連番ファイルに書き出す。
-	//reading_filenameから始まる連番ファイルはソート済みでも重複なしとも限らないとする。
-	//reading_filenameのファイルは削除する。writing_filenameのファイルだけが最終的に残る。
 	
 	assert(reading_filename != writing_filename);
 
-	//まず、readingのファイルたちを読み込んで、降順ソートして、重複を削除して、上書きする。
 	int64_t num_files = 0;
 	std::vector<int64_t>linesizes;
 	std::vector<std::vector<std::array<uint64_t, 4>>>chunk_data_vec = descending_sort_all_files_and_get_chunkdata(N, reading_filename, writing_filename, num_files, linesizes);
 	
-	//チャンクに含まれる値の最小値を集めて昇順ソートする。重複はそのまま残す。
 	std::vector<uint64_t>chunk_min_values;
 	for(int64_t i = 0; i < chunk_data_vec.size(); ++i){
 		for(int64_t j = 0; j < chunk_data_vec[i].size(); ++j){
@@ -1390,13 +1316,13 @@ void renbansort(const int N, const std::string reading_filename, const std::stri
 	uint64_t write_max_value = 0;
 
 	while(true){
-		assert((2'000'000'000 - codes_buf.size()) / LINE_CHUNK_SIZE > 0);//バッファが十分にあり、読み込める行数が0より大きいことを保証する。
+		assert((2'000'000'000 - codes_buf.size()) / LINE_CHUNK_SIZE > 0);
 		chunk_min_values_cursor += (2'000'000'000 - codes_buf.size() + LINE_CHUNK_SIZE - 1) / LINE_CHUNK_SIZE;
 		chunk_min_values_cursor = std::min(chunk_min_values_cursor, (int64_t)chunk_min_values.size() - 1);
 
 		const uint64_t read_threshold = chunk_min_values[chunk_min_values_cursor];
 		int64_t read_count = 0;
-		uint64_t write_threshold = 0xFFFF'FFFF'FFFF'FFFFULL;//この値以下なら書き込んで良い
+		uint64_t write_threshold = 0xFFFF'FFFF'FFFF'FFFFULL;
 		std::vector<int64_t>read_start_index(num_files, 0);
 		for(int64_t i = 0; i < num_files; ++i){
 			bool read_flag = false;
@@ -1408,14 +1334,14 @@ void renbansort(const int N, const std::string reading_filename, const std::stri
 			if(read_flag){
 				read_start_index[i] = chunk_data_vec[i][chunk_read_cursor[i]][CHUNKDATA_INDEX_LOWERBOUND];
 				if(chunk_read_cursor[i] > 0){
-					write_threshold = std::min(write_threshold, chunk_data_vec[i][chunk_read_cursor[i] - 1][CHUNKDATA_VALUE_LOWERBOUND] - 1);//各ファイルについて、読み込まなかった部分にかかれている最小値たちを見て、それら-1の最小値を取る。
+					write_threshold = std::min(write_threshold, chunk_data_vec[i][chunk_read_cursor[i] - 1][CHUNKDATA_VALUE_LOWERBOUND] - 1);
 				}
 			}
 			else{
 				if(chunk_read_cursor[i] == 0)assert(linesizes[i] == 0);
 				else{
 					assert(chunk_data_vec[i][chunk_read_cursor[i] - 1][CHUNKDATA_INDEX_UPPERBOUND] + 1 == linesizes[i]);
-					write_threshold = std::min(write_threshold, chunk_data_vec[i][chunk_read_cursor[i] - 1][CHUNKDATA_VALUE_LOWERBOUND] - 1);//各ファイルについて、読み込まなかった部分にかかれている最小値たちを見て、それら-1の最小値を取る。
+					write_threshold = std::min(write_threshold, chunk_data_vec[i][chunk_read_cursor[i] - 1][CHUNKDATA_VALUE_LOWERBOUND] - 1);
 				}
 				read_start_index[i] = linesizes[i];
 			}
@@ -1476,7 +1402,6 @@ void renbansort(const int N, const std::string reading_filename, const std::stri
 		assert(codes_buf[0] <= write_threshold);
 
 		int64_t lb = 0, ub = codes_buf.size();
-		//codes_buf[lb] <= write_threshold < codes_buf[ub]なるlb,ubを求める。
 		while(lb + 1 < ub){
 			const int64_t mid = lb / 2 + ub / 2 + (lb % 2 + ub % 2) / 2;
 			if(codes_buf[mid] <= write_threshold){
@@ -1504,7 +1429,6 @@ void renbansort(const int N, const std::string reading_filename, const std::stri
 		
 		write_max_value = codes_buf[writing_lines_unique_size - 1];
 
-		//codes_bufのうち、書き込まなかった末尾部分を先頭に移してresizeする。
 		for(int64_t j = writing_lines_unique_size; j < codes_buf.size(); ++j){
 			codes_buf[j - writing_lines_unique_size] = codes_buf[j];
 		}
@@ -1514,7 +1438,6 @@ void renbansort(const int N, const std::string reading_filename, const std::stri
 	writing_result_file.flush();
 
 
-	//readingのファイルたちが空白ファイルになっていることを確認して削除する。
 	for(int64_t i = 0; i < num_files; ++i){
 		const std::string filename = reading_filename + "_" + std::to_string(i) + ".txt";
 		std::error_code ec;
@@ -1534,12 +1457,6 @@ int solve(const int N, const std::string S) {
 		return std::string("0") + std::to_string(num);
 	};
 
-	/*
-	コマンドライン引数を見る。
-	第一引数の値Nが4で第二引数が"f"なら、初期局面を1要素のリストとして書き出す。
-	第一引数の値Nが5以上36以下で第二引数が"f"なら、石の数N-1の局面リストを読み込んで、1手先の局面リストを書き出す。
-
-	*/
 
 	if (N == 4 && S == "f") {
 		std::ofstream writing_file;
@@ -1583,7 +1500,6 @@ int solve(const int N, const std::string S) {
 		for(int64_t i = 0;; ++i){
 			const std::string filename = result_filename + "_" + std::to_string(i) + ".txt";
 
-			//存在確認とファイルサイズの取得。
 			std::error_code ec;
 			if (!std::filesystem::exists(filename, ec)){
 				break;
@@ -1596,7 +1512,6 @@ int solve(const int N, const std::string S) {
 				return 0;
 			}
 
-			//ファイルを読み込んでtmp_stringに格納する。
 			std::vector<char> tmp_string(filesize + 1);
 			std::ifstream reading_file;
 			reading_file.open(filename, std::ios::in);
@@ -1607,7 +1522,6 @@ int solve(const int N, const std::string S) {
 			reading_file.read(tmp_string.data(), filesize);
 			reading_file.close();
 
-			//tmp_stringを1行ずつ64bit整数に変換する
 			std::vector<uint64_t> codes(linesize);
 #pragma omp parallel for schedule(static)
 			for(int64_t j = 0; j < linesize; ++j){
@@ -1645,7 +1559,6 @@ int solve(const int N, const std::string S) {
 		return 0;
 	}
 	else if(5 <= N && N <= 36 && (S == "s")) {
-		//次の手の列挙だけ行い、書き込みはしない。必要なディスク容量を得るために使う。
 		const std::string reading_filename = "forward_" + zerofill_itos(N - 1) + "_boardlist";
 
 		firststep_enumerate_legalmoves_countonly(N, reading_filename);
@@ -1684,13 +1597,6 @@ num_stone==16 : current_boards.size()==51072917
 num_stone==17 : current_boards.size()==251070145
 	*/
 
-	/*
-
-	kマス空き局面リストから,k-1マス空き局面リストを作る方法
-	100M局面ずつ読み込んで、並列処理する。生成した局面たちはsort→uniquefyしてから個別のファイルに書き出す。
-	すべての処理が終わったら、書き出したファイルたちをコンカチして改めてsort→uniquefyする。
-	
-	*/
 
 	return 0;
 }
