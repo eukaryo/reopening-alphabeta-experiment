@@ -1,5 +1,7 @@
 # reopening-alphabeta-experiment
 
+[![DOI](https://zenodo.org/badge/879428459.svg)](https://doi.org/10.5281/zenodo.18925577)
+
 ### How to run
 ```
 $ ./processing-optimal-ab.sh
